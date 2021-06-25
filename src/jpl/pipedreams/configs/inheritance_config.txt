@@ -1,0 +1,2 @@
+<up>||<exclude>||DataCustodian, DatasetDescription,FileDescription,FileVersion,FileDownloadId,FileLocation,FileId,FileName,FileSize,Description,ThumbnailRelativePath,ThumbnailPath,labcas.pathology:Cohort, labcas.pathology:Sub-Cohort, FileUrl
+<down>||<exclude>||DatasetDescription,FileDescription,FileVersion,FileDownloadId,FileLocation,FileId,FileName,FileSize,Description,ThumbnailRelativePath,ThumbnailPath,labcas.pathology:Cohort, labcas.pathology:Sub-Cohort

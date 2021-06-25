@@ -1,0 +1,3 @@
+A||AA
+AA||BB||B
+AA||<camelcase>

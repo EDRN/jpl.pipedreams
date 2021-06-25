@@ -1,0 +1,3 @@
+graft src/jpl
+include *.json *.xlsx *.txt
+global-exclude *.py[cod]

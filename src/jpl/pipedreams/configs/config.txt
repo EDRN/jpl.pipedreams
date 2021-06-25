@@ -1,0 +1,4 @@
+labcas.pathology:Gender||Gender
+Gender||Female||female, 01, FEMALE, F, f, FEMALE:
+Gender||Male||male, 02, MALE:, MALE, M, m
+Species||<camelcase>

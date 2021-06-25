@@ -1,0 +1,10 @@
+<cas:metadata xmlns:cas="http://oodt.jpl.nasa.gov/1.0/cas">
+	<keyval type="vector">
+		<key>XML_meta_3</key>
+		<val>meta_val_3</val>
+	</keyval>
+	<keyval type="vector">
+		<key>XML_meta_4</key>
+		<val>meta_val_4</val>
+	</keyval>
+</cas:metadata>
