@@ -1,8 +1,13 @@
 # encoding: utf-8
 
-from jpl.pipedreams.utils.misc_utils import insensitive_glob
 from .template import Template
 import os
+import glob
+
+def insensitive_glob(pattern):
+    def either(c):
+        return '[%s%s]' % (c.lower(), c.upper()) if c.isalpha() else c
+    return glob.glob(''.join(map(either, pattern)))
 
 
 class Disk(Template):

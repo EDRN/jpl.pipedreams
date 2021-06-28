@@ -2,8 +2,9 @@
 
 from .template import Template
 import configparser
-from jpl.pipedreams.utils.misc_utils import MyException
 
+class MyException(Exception):
+    pass
 
 class Cfg(Template):
     def __init__(self):

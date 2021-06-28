@@ -1,4 +1,3 @@
-import os
 
 def add_suffix_to_dict_values(meta_input, suffix):
     return {k: str(v[0])+'_'+suffix for k,v in meta_input.items()}
