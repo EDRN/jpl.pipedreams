@@ -1,17 +1,15 @@
 # encoding: utf-8
 
-'''Demonstration. This is an example invocation of the LabCAS Publshing API.'''
+'''Demonstration. This is a demo to show the usage of jpl.pipedreams'''
 
 
 import os
 import time
 from jpl.pipedreams.data_pipe import Operation
-from jpl.pipedreams.plugins.for_demo.for_demo import add_suffix_to_dict_values, retrieve_additional_metadata
+from plugins.general.for_demo import add_suffix_to_dict_values, retrieve_additional_metadata
 
-# 😳 Normally you should never use ``__file__`` (or ``__path__``), except since
-# this is code intended for demonstration, we'll lt it slide. Here,
 # ``base_data_path`` tells us where to find the test data.
-base_data_path = os.path.join(os.path.dirname(__file__), 'test/test_data/demo')
+base_data_path = os.path.join(os.path.dirname(__file__), 'test/data')
 
 
 # Hello World!
@@ -87,11 +85,10 @@ my_second_operation.add_pipes(resource_ID="mydata2.cfg", processes=main_task_tem
 - Notice that we used the filename also as the 'resource_ID'. To be honest, you can use any name 
     above and it won't be an issue.
 """
-my_second_operation.run_graph(processes=1)
+my_second_operation.run_graph(processes=2)
 """
 - If you give the 'process' a value more than 1, it uses Celery and Redis to parallelize the graph execution.
 - Try it but make sure you have a redis client running and have Celery installed!
-    - you can use the Redis/Dockerfile to quickly start a redis server in your local
 """
 time.sleep(3)
 
