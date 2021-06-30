@@ -9,8 +9,7 @@ from jpl.pipedreams.data_pipe import Operation
 from plugins.general.for_demo import add_suffix_to_dict_values, retrieve_additional_metadata
 
 # ``base_data_path`` tells us where to find the test data.
-base_data_path = os.path.join(os.path.dirname(__file__), 'test/data')
-
+base_data_path = os.path.join(os.path.dirname(__file__), 'data')
 
 # Hello World!
 # ============
@@ -22,7 +21,7 @@ my_first_operation = Operation(name='my_first_operation')
 
 # Declare your process using a plugin function:
 process_list = [
-    ("hello_world_read", "jpl.pipedreams.plugins.file_ops.disk.read_str", {"path": os.path.join(base_data_path, 'mydata0.txt')})
+    ("hello_world_read", "plugins.file_ops.disk.read_str", {"path": os.path.join(base_data_path, 'mydata0.txt')})
 ]
 
 """
@@ -41,12 +40,12 @@ my_first_operation.run_graph()
 - Here we will create a pipeline where a .cfg file is read and some simple process is applied to the contents.
 """
 my_second_operation = Operation(name='my_second_operation')
-# declare the processes that run successively in a single template; we call this a template cause you can reuse it later.
+# declare the processes that run sequentially in a single template; we call this a template cause you can reuse it later.
 main_task_template = [
     # read the metadata file from disk
-    ("read_cfg", "jpl.pipedreams.plugins.file_ops.disk.read_str", None),
+    ("read_cfg", "plugins.file_ops.disk.read_str", None),
     # parse the string into a dictionary
-    ("parse_cfg", "jpl.pipedreams.plugins.metadata_parsers.cfg.parse_metadata", None),
+    ("parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None),
     # change the name to match the input of the next function
     ("result_change_name", 'change_name', {'in_to_out': {'metadata': 'meta_input'}}),
     # do some simple processing to the metadata
@@ -116,9 +115,9 @@ my_third_operation = Operation(name='my_third_operation')
 
 add_op_resource = [
     # read the bytes of the file from disk
-    ("read_excel", "jpl.pipedreams.plugins.file_ops.disk.get_bytes", None),
+    ("read_excel", "plugins.file_ops.disk.get_bytes", None),
     # parse the excel into a dataframe
-    ("excel_to_df", "jpl.pipedreams.plugins.metadata_parsers.excel.parse_metadata", None),
+    ("excel_to_df", "plugins.metadata_parsers.excel.parse_metadata", None),
     # add the result to the op resources
     ("add_extra_metedata_resource", 'add_to_op_resource', {"in_to_op": {'metadata': 'additional_metadata'}}),
     # remove the op resource part of the result from the result
@@ -132,9 +131,9 @@ add_op_resource = [
 """
 main_task_template = [
     # read the metadata file from disk
-    ("read_cfg", "jpl.pipedreams.plugins.file_ops.disk.read_str", None),
+    ("read_cfg", "plugins.file_ops.disk.read_str", None),
     # parse the string into a dictionary
-    ("parse_cfg", "jpl.pipedreams.plugins.metadata_parsers.cfg.parse_metadata", None),
+    ("parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None),
     # add the additional metadata to the main metadata
     ("use_the_added_resource", retrieve_additional_metadata, None)
 ]

@@ -2,7 +2,6 @@
 
 '''Resources and tasks for data pipes'''
 
-from .celery_task_registry import celery_obj_func_runner, celery_indi_func_runner
 from .plugins_ops import PluginCollection
 from .utils.misc_utils import merge_dict, merge_dicts, nested_set, collect_dicts, ignore_unmatched_kwargs
 import copy
@@ -13,7 +12,7 @@ import os
 import shlex
 import subprocess
 import time
-
+from jpl.pipedreams.celeryapp import CeleryDreamer
 
 class Resource(object):
 
@@ -24,7 +23,7 @@ class Resource(object):
 
 class Task(object):
 
-    def __init__(self, name: str, process, resource_ID: str, plugin_collection: PluginCollection, run_function=None, params: dict=None, op_params: dict=None):
+    def __init__(self, name: str, process, resource_ID: str, plugin_collection: PluginCollection, celerydreamer, run_function=None, params: dict=None, op_params: dict=None):
 
         if params is None:
             params={}
@@ -55,6 +54,7 @@ class Task(object):
         self.params=params
         self.op_params=op_params
         self.run_function=run_function
+        self.celerydreamer=celerydreamer
 
     @staticmethod
     def concoct_task_ID(name, resource_ID):
@@ -74,17 +74,17 @@ class Task(object):
                 if single_process:
                     self.result = self.process.apply(self.run_function, **kwargs)
                 else:
-                    self.result=celery_obj_func_runner.delay(self.process, self.run_function, **kwargs)
+                    self.result=self.celerydreamer.celery_obj_func_runner.delay(self.process, self.run_function, **kwargs)
             else:
                 if single_process:
                     self.result = self.process.run(**kwargs)
                 else:
-                    self.result = celery_obj_func_runner.delay(self.process, 'run', **kwargs)
+                    self.result = self.celerydreamer.celery_obj_func_runner.delay(self.process, 'run', **kwargs)
         else:
             if single_process:
                 self.result=ignore_unmatched_kwargs(self.process)(**kwargs)
             else:
-                self.result = celery_indi_func_runner.delay(self.process, **kwargs)
+                self.result = self.celerydreamer.celery_indi_func_runner.delay(self.process, **kwargs)
 
     def postprocess_results(self):
 
@@ -198,6 +198,8 @@ class Operation(object):
         self.connector_functions_mapping= {func_name: getattr(self, func_name) for func_name in list(methodsWithDecorator(Operation, 'register_connector_func'))}
         self.non_parallel_connector_functions_mapping={func_name: getattr(self, func_name) for func_name in list(methodsWithDecorator(Operation, 'register_non_parallelizable_connector_func'))}
 
+        self.celerydreamer = CeleryDreamer(['plugins'])
+
     def add_edge(self, task_ID_A, task_ID_B):
 
         task_graph = self.task_graph
@@ -248,7 +250,7 @@ class Operation(object):
             if task_ID not in task_ID_to_task.keys():
                 # merge the runtime params provided during declaration of the pipe and addition of the pipe!
                 runtime_params=merge_dict(runtime_params, runtime_params_dict.get(name, {}))
-                task=Task(name, process, resource_ID, self.plugin_collection, run_function, runtime_params, op_params)
+                task=Task(name, process, resource_ID, self.plugin_collection, self.celerydreamer, run_function, runtime_params, op_params)
                 task_ID_to_task[task.get_task_ID()] = task
                 print('Adding Node:', task_ID)
                 task_graph.add_node(task_ID, process=process)
@@ -325,21 +327,6 @@ class Operation(object):
 
         return params
 
-    # # OLD CODE: for non parallel task execution
-    # def run_graph(self):
-    #     for task_ID in nx.topological_sort(self.task_graph):
-    #         task = self.task_ID_to_task[task_ID]
-    #         params=self.task_prep(task_ID)
-    #         print("Running:", task_ID)
-    #         print("   ---> with inherited params (from parent(s) task result(s)):", params)
-    #         print("   ---> with runtime params:", task.runtime_params)
-    #         task.run_task(single_process=True, **params)
-    #         task.postprocess_results(single_process=True, **params)
-    #         print("     ---> result:", task.result)
-    #         # gather all the params and task results for this operation
-    #         self.params[task_ID]=params
-    #         self.results[task_ID]=task.result
-
 
     def run_graph(self, processes=1):
 
@@ -350,9 +337,12 @@ class Operation(object):
         if processes>1:
             # todo: make sure redis is running
             # start a single Celery worker that can spawn multiple processes
+            # self.celerydreamer.start(concurrency=4)
             subprocess.Popen(
-                shlex.split("celery -A jpl.pipedreams.celeryapp:app worker -l INFO --concurrency="+str(processes)+" -n worker1"),
-                stdout=open(os.devnull, 'wb'))
+                shlex.split(
+                "python -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer([\"plugins\"]); cd.start(concurrency=4)'"),
+                stdout=open(os.devnull, 'wb')
+            )
 
         task_graph=self.task_graph
         next=set()
@@ -423,7 +413,9 @@ class Operation(object):
                 added.remove(task_ID)
 
         # kill celery worker
-        subprocess.call(shlex.split("pkill -f \"celery\""))
+        if processes > 1:
+            # self.celerydreamer.stop()
+            subprocess.call(shlex.split("pkill -f \"celery\""))
         print('num nodes in task graph:', len(task_graph.nodes))
         print('num task completed:', task_completed_count)
         print('time taken:', datetime.datetime.now()-start)
