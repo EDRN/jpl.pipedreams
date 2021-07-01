@@ -1,6 +1,6 @@
 # 🔬 Pipe Dreams
 
-###Do you want to:
+### Do you want to:
 - Organize your huge pile of loose scripts ?
 - Create neat and reusable python pipelines to process your data or run jobs ?
 - Have a graph (DAG) based parallelization without too much fuss ?  
