@@ -8,8 +8,15 @@ import time
 from jpl.pipedreams.data_pipe import Operation
 from plugins.general.for_demo import add_suffix_to_dict_values, retrieve_additional_metadata
 
-# ``base_data_path`` tells us where to find the test data.
-base_data_path = os.path.join(os.path.dirname(__file__), 'data')
+# Let us declare some global variables first
+base_data_path = os.path.join(os.path.dirname(__file__), 'data') # the path to the test data
+
+# here we will state the url for the redis instance we seek to use
+redis_path='redis://localhost:6379'
+# you will also have to provide the relative path to your directory with all your plugins.
+# This helps us find all your functions and register them as Celery Workers.
+plugins_dir_list=['plugins']
+
 
 # Hello World!
 # ============
@@ -17,7 +24,7 @@ base_data_path = os.path.join(os.path.dirname(__file__), 'data')
 # Here we will go through the steps rather quickly and explain things more clearly in the next section.
 #
 # First, initialize an operation (an operation contains a task graph associated with it):
-my_first_operation = Operation(name='my_first_operation')
+my_first_operation = Operation(name='my_first_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
 
 # Declare your process using a plugin function:
 process_list = [
@@ -39,7 +46,7 @@ my_first_operation.run_graph()
 """
 - Here we will create a pipeline where a .cfg file is read and some simple process is applied to the contents.
 """
-my_second_operation = Operation(name='my_second_operation')
+my_second_operation = Operation(name='my_second_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
 # declare the processes that run sequentially in a single template; we call this a template cause you can reuse it later.
 main_task_template = [
     # read the metadata file from disk
@@ -111,7 +118,7 @@ my_second_operation.run_graph()
 
 # ========================== The one where the kids steal their parent's car keys
 # ======================================================================================================================
-my_third_operation = Operation(name='my_third_operation')
+my_third_operation = Operation(name='my_third_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
 
 add_op_resource = [
     # read the bytes of the file from disk

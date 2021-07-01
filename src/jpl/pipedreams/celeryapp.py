@@ -11,9 +11,11 @@ def celery_indi_func_runner(func_object, **kwargs):
 
 class CeleryDreamer():
 
-    def __init__(self, plugin_list):
-        self.BROKER_URL = 'redis://localhost:6379/0'
-        self.BACKEND_URL = 'redis://localhost:6379/1'
+    def __init__(self, plugin_list, redis_url=None):
+        if redis_url[-1]!='/':
+            redis_url+='/'
+        self.BROKER_URL = redis_url+'0'
+        self.BACKEND_URL = redis_url+'1'
         self.app = Celery('proj',
                           broker=self.BROKER_URL,
                           backend=self.BACKEND_URL,
