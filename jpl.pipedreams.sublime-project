@@ -12,7 +12,8 @@
             "build",
             "*.egg-info",
             "var",
-            "__pycache__"
+            "__pycache__",
+            "venv"
          ],
          "path" : "."
       }

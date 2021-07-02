@@ -11,7 +11,7 @@ import networkx as nx
 import os
 import shlex
 import subprocess
-import time
+import time, sys
 from jpl.pipedreams.celeryapp import CeleryDreamer
 
 
@@ -354,7 +354,7 @@ class Operation(object):
             strigified_list="["+",".join(["\""+item+"\"" for item in self.inlude_plugins])+"]"
             subprocess.Popen(
                 shlex.split(
-                    "python -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
+                    sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
                 stdout=open(os.devnull, 'wb')
             )
 
