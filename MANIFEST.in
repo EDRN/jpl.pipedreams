@@ -1,3 +1,4 @@
 graft src/jpl
+prune venv demo
 include *.json *.xlsx *.txt
 global-exclude *.py[cod]
