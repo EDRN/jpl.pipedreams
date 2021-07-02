@@ -1,7 +1,5 @@
-import glob
 import re
 import traceback
-import os
 import functools
 import inspect
 import json
@@ -9,34 +7,6 @@ import json
 class MyException(Exception):
     pass
 
-def get_file_ext(filename):
-    # TODO: get a better implementation
-    return filename.split('.')[-1] if '.' in filename else ''
-
-
-def camel_case_split(str):
-    return ' '.join(re.findall(r'[A-Z](?:[a-z]+|[A-Z]*(?=[A-Z]|$))', str))
-
-
-def insensitive_glob(pattern):
-    def either(c):
-        return '[%s%s]' % (c.lower(), c.upper()) if c.isalpha() else c
-    return glob.glob(''.join(map(either, pattern)))
-
-def error_catch(func):
-    def func_wrapper(*args, **kwargs):
-        try:
-           return func(*args, **kwargs)
-
-        except Exception as e:
-            print({'status': 'error', 'reason':str(e), 'details':traceback.format_exc()})
-            return json.dumps({'status': 'error', 'reason':str(e), 'details':traceback.format_exc()})
-
-    func_wrapper.__name__ = func.__name__
-    # if you do not give this, it gives an error:
-    #   https://stackoverflow.com/questions/17256602/assertionerror-view-function-mapping-is-overwriting-an-existing-endpoint-functi
-
-    return func_wrapper
 
 def collect_dict(dict_a, dict_b):
     """

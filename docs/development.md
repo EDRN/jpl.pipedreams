@@ -1,6 +1,6 @@
 # 👩‍💻 Development
 
-If you're a _user_ of this package, see the README for instructions on using the publishing API.
+If you're a _user_ of this package, see the README for instructions on using the pipe dreams API.
 
 If you're a _developer of this package_ or wish to contribute to it, then these instructions are for you!
 
@@ -13,7 +13,7 @@ To develop, fix bugs for, enhance, or update the LabCAS Publshing API, you'll ne
 - A Redis instance—or Docker in order to simplify running one
 - Git version 2.30 or later
 
-👉 _Note:_ Redis doesn't seem to be actually required; the `demo.py` pipeline in the source works fine without it. It may be masking an error, but that's what [the issue tracker is for](https://github.com/EDRN/jpl.pipedreams/issues).
+👉 _Note:_ Redis is required for parallel pipe processing; if you keep `process=1` when you `run_graph` don't worry about it.
 
 
 ## Setting Up the Development Environment
@@ -34,14 +34,20 @@ Once inside the `jpl.pipedreams` source directory, create a Python virtual envir
 $ python3 -m venv venv
 $ venv/bin/pip install --upgrade setuptools pip wheel
 $ venv/bin/pip install --editable .
+$ source venv/bin/activate  # or activate.csh or activate.fish as needed
 ```
 
-The first command creates the virtual environment in a subdirectory called `venv`. The second command upgrades the `setuptools`, `pip`, and `wheel` packages. And the final command installs the source code into the virtual environment in editable mode, meaning that changes you make to Python and other files in `src` are immediately reflected in the virtual environment.
+The first command creates the virtual environment in a subdirectory called `venv`. The second command upgrades the `setuptools`, `pip`, and `wheel` packages. And the final command installs the source code into the virtual environment in editable mode, meaning that changes you make to Python and other files in `src` are immediately reflected in the virtual environment. The last command "activates" the virtual environment, essentially putting its programs ahead of others in your execution path. This is deprecated, but needed for now to ensure `celery` is on your `PATH`.
 
 You can then run `venv/bin/python` and it will have local development-version of LabCAS Publishing API (as well as its dependencies) ready for use.
 
-For example, you can now run the `demo.py` demonstration pipeline:
+
+## Running the Demo from Development
+
+The `demo` directory contains an example workflow `demo.py` and test data. To run it from the development environment, follows the steps above to set up the environment. Then, start Redis (see the README). Finally, do:
 
 ```console
-$ venv/bin/python demo.py
+$ cd demo
+$ ../venv/bin/pip install --requirement requirements.txt
+$ ../venv/bin/python demo.py
 ```

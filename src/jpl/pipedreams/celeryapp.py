@@ -1,33 +1,41 @@
 from celery import Celery
+from .utils.misc_utils import ignore_unmatched_kwargs
 
-BROKER_URL = 'redis://localhost:6379/0'
-BACKEND_URL = 'redis://localhost:6379/1'
-app = Celery('proj',
-             broker=BROKER_URL,
-             backend=BACKEND_URL,
-             include=['jpl.pipedreams.celery_task_registry'])
+def celery_obj_func_runner(obj, func_name, **kwargs):
+    result = ignore_unmatched_kwargs(getattr(obj, func_name))(**kwargs)
+    return result
 
-# Optional configuration, see the application user guide.
-app.conf.update(
-    result_expires=3600,
-        serializer='pickle',
-        result_serializer='pickle',
-        task_serializer='pickle',
-        accept_content=['pickle', 'json'],
-        result_accept_content=['pickle', 'json']
-)
+def celery_indi_func_runner(func_object, **kwargs):
+    result = ignore_unmatched_kwargs(func_object)(**kwargs)
+    return result
 
-if __name__ == '__main__':
-    app.start()
+class CeleryDreamer():
 
+    def __init__(self, plugin_list, redis_url=None):
+        if redis_url[-1]!='/':
+            redis_url+='/'
+        self.BROKER_URL = redis_url+'0'
+        self.BACKEND_URL = redis_url+'1'
+        self.app = Celery('proj',
+                          broker=self.BROKER_URL,
+                          backend=self.BACKEND_URL,
+                          include=plugin_list)
+        # Optional configuration, see the application user guide.
+        self.app.conf.update(
+            result_expires=3600,
+            serializer='pickle',
+            result_serializer='pickle',
+            task_serializer='pickle',
+            accept_content=['pickle', 'json'],
+            result_accept_content=['pickle', 'json']
+        )
+        self.celery_obj_func_runner = self.app.task(celery_obj_func_runner)
+        self.celery_indi_func_runner = self.app.task(celery_indi_func_runner)
 
-# run a single worker
-# >> celery -A jpl.pipedreams.celeryapp:app worker -l INFO --concurrency=2 -n worker1
-# kill stray celery processes:
-# >> sudo pkill -f celery
+    def start(self, concurrency):
+        self.worker = self.app.Worker(concurrency=concurrency)
+        self.worker.start()
 
-"""
-ref: 
-https://stackoverflow.com/questions/19926750/django-importerror-cannot-import-name-celery-possible-circular-import
-https://stackoverflow.com/questions/31898311/celery-difference-between-concurrency-workers-and-autoscaling
-"""
+    def stop(self):
+        self.worker.stop()
+
