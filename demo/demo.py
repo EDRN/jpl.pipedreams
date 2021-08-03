@@ -24,7 +24,7 @@ plugins_dir_list=['plugins']
 # Here we will go through the steps rather quickly and explain things more clearly in the next section.
 #
 # First, initialize an operation (an operation contains a task graph associated with it):
-my_first_operation = Operation(name='my_first_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
+my_first_operation = Operation(name='my_first_operation', redis_path=redis_path, include_plugins=plugins_dir_list)
 
 # Declare your process using a plugin function:
 process_list = [
@@ -46,7 +46,7 @@ my_first_operation.run_graph()
 """
 - Here we will create a pipeline where a .cfg file is read and some simple process is applied to the contents.
 """
-my_second_operation = Operation(name='my_second_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
+my_second_operation = Operation(name='my_second_operation', redis_path=redis_path, include_plugins=plugins_dir_list)
 # declare the processes that run sequentially in a single template; we call this a template cause you can reuse it later.
 main_task_template = [
     # read the metadata file from disk
@@ -118,7 +118,7 @@ my_second_operation.run_graph()
 
 # ========================== The one where the kids steal their parent's car keys
 # ======================================================================================================================
-my_third_operation = Operation(name='my_third_operation', redis_path=redis_path, inlude_plugins=plugins_dir_list)
+my_third_operation = Operation(name='my_third_operation', redis_path=redis_path, include_plugins=plugins_dir_list)
 
 add_op_resource = [
     # read the bytes of the file from disk

@@ -198,17 +198,18 @@ class Operation(object):
         time.sleep(wait_time)
         return kwargs
 
-    def __init__(self, name: str, redis_path=None, inlude_plugins=None):
+    def __init__(self, name: str, redis_path=None, include_plugins=None):
         self.task_graph = nx.DiGraph()
         self.name = name
         self.task_ID_to_task = {}
         self.plugin_collection = PluginCollection()
         self.results = {}
-        self.params = {}
+        self.inherited_params = {}
+        self.self_params = {}
         self.added_resources = {}
         self.inherited_resource = {}
         self.redis_path=redis_path
-        self.inlude_plugins=inlude_plugins
+        self.include_plugins=include_plugins
 
         # add all the connector functions to a dictionary; to be accessed using their names
         self.connector_functions_mapping = {func_name: getattr(self, func_name) for func_name in
@@ -216,9 +217,9 @@ class Operation(object):
         self.non_parallel_connector_functions_mapping = {func_name: getattr(self, func_name) for func_name in list(
             methodsWithDecorator(Operation, 'register_non_parallelizable_connector_func'))}
 
-        if inlude_plugins is None:
-            inlude_plugins = []
-        self.celerydreamer = CeleryDreamer(inlude_plugins, redis_path)
+        if include_plugins is None:
+            include_plugins = []
+        self.celerydreamer = CeleryDreamer(include_plugins, redis_path)
 
     def add_edge(self, task_ID_A, task_ID_B):
 
@@ -395,6 +396,8 @@ class Operation(object):
                     print("Adding to Run Queue:", next_task_ID)
                     print("   ---> with inherited params (from parent(s) task result(s)):", params)
                     print("   ---> with self params:", next_task.params)
+                    self.inherited_params[next_task_ID]=params
+                    self.self_params[next_task_ID] = next_task.params
                     if processes == 1 or next_task_ID in self.non_parallel_connector_functions_mapping.keys():
                         next_task.run_task(single_process=True, **params)
                         next_task.postprocess_results()
