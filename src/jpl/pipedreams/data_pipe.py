@@ -62,6 +62,14 @@ class Task(object):
     def concoct_task_ID(name, resource_ID):
         return name + '|+|' + resource_ID
 
+    @staticmethod
+    def task_ID_to_resource_ID(task_ID):
+        return task_ID.split('|+|')[1]
+
+    @staticmethod
+    def task_ID_to_function_name(task_ID):
+        return task_ID.split('|+|')[0]
+
     def get_task_ID(self):
         return Task.concoct_task_ID(self.name, self.resource_ID)
 
