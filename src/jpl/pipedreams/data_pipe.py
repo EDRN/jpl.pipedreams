@@ -338,6 +338,7 @@ class Operation(object):
                 params[k] = v[0]
 
         params['op_resources'] = resources
+        params['plugin_runner'] = self.plugin_collection
 
         return params
 
