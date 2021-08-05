@@ -231,12 +231,12 @@ class Operation(object):
             return None
         if not silent:
             print("Adding Edge: " + task_ID_A + " --> " + task_ID_B)
-        task_graph.add_edge(task_ID_A, task_ID_B)
         # check if the above breaks the DAG assumptions
-        if not nx.is_directed_acyclic_graph(task_graph):
-            task_graph.remove_edge(task_ID_A, task_ID_B)
+        if not nx.has_path(task_graph, task_ID_B, task_ID_A):
+            task_graph.add_edge(task_ID_A, task_ID_B)
+        else:
             print("LOOP ERROR: :",
-                  task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
+                      task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
 
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
                   resource_dict: dict = None, silent=False):
@@ -302,7 +302,7 @@ class Operation(object):
         self.add_edge(task_ID_A, task_ID_B, silent=silent)
 
     def task_prep(self, task_ID):
-        print('\n')
+        # print('\n')
         # print('DBG: all_added_resources:', self.added_resources.get(task_ID, None))
         # print('DBG: all_inherited_resource:', self.inherited_resource)
         # gather the results from the parent tasks
