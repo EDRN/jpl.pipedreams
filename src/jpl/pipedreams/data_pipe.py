@@ -221,7 +221,7 @@ class Operation(object):
             include_plugins = []
         self.celerydreamer = CeleryDreamer(include_plugins, redis_path)
 
-    def add_edge(self, task_ID_A, task_ID_B):
+    def add_edge(self, task_ID_A, task_ID_B, silent=False):
 
         task_graph = self.task_graph
         task_ID_to_task = self.task_ID_to_task
@@ -229,7 +229,8 @@ class Operation(object):
         if task_ID_A not in task_ID_to_task.keys() or task_ID_B not in task_ID_to_task.keys():
             print('ERROR: Please, initialize the processes first using the \'add_pipes\' function!')
             return None
-        print("Adding Edge: " + task_ID_A + " --> " + task_ID_B)
+        if not silent:
+            print("Adding Edge: " + task_ID_A + " --> " + task_ID_B)
         task_graph.add_edge(task_ID_A, task_ID_B)
         # check if the above breaks the DAG assumptions
         if not nx.is_directed_acyclic_graph(task_graph):
@@ -238,7 +239,7 @@ class Operation(object):
                   task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
 
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
-                  resource_dict: dict = None):
+                  resource_dict: dict = None, silent=False):
         """
         processes: a list of tuples (process_name, process)
         runtime_params_dict: {process_name:runtime_params_as_dict}}
@@ -276,12 +277,13 @@ class Operation(object):
                 task = Task(name, process, resource_ID, self.plugin_collection, self.celerydreamer, run_function,
                             runtime_params, op_params)
                 task_ID_to_task[task.get_task_ID()] = task
-                print('Adding Node:', task_ID)
+                if not silent:
+                    print('Adding Node:', task_ID)
                 task_graph.add_node(task_ID, process=process)
             else:
                 task = task_ID_to_task[task_ID]
             if i != 0:
-                self.add_edge(task_prev.get_task_ID(), task.get_task_ID())
+                self.add_edge(task_prev.get_task_ID(), task.get_task_ID(), silent=silent)
 
             # add any explicitly provided resources for this task; these will be made available to any downstream tasks
             for resource_name, resource in resource_dict.get(name, {}).items():
@@ -291,13 +293,13 @@ class Operation(object):
 
             task_prev = task
 
-    def add_connection(self, resource_ID_A, name_A, resource_ID_B, name_B):
+    def add_connection(self, resource_ID_A, name_A, resource_ID_B, name_B, silent=False):
         """
         To connect two tasks which have been already initialized using the function: add_pipes
         """
         task_ID_A = Task.concoct_task_ID(name_A, resource_ID_A)
         task_ID_B = Task.concoct_task_ID(name_B, resource_ID_B)
-        self.add_edge(task_ID_A, task_ID_B)
+        self.add_edge(task_ID_A, task_ID_B, silent=silent)
 
     def task_prep(self, task_ID):
         print('\n')
@@ -351,7 +353,7 @@ class Operation(object):
 
         return params
 
-    def run_graph(self, processes=1):
+    def run_graph(self, processes=1, silent=False):
 
         if processes < 1:
             processes = 1
@@ -393,16 +395,18 @@ class Operation(object):
                     next_task = self.task_ID_to_task[next_task_ID]
                     # gather params from parents
                     params = self.task_prep(next_task_ID)
-                    print("Adding to Run Queue:", next_task_ID)
-                    print("   ---> with inherited params (from parent(s) task result(s)):", params)
-                    print("   ---> with self params:", next_task.params)
+                    if not silent:
+                        print("Adding to Run Queue:", next_task_ID)
+                        print("   ---> with inherited params (from parent(s) task result(s)):", params)
+                        print("   ---> with self params:", next_task.params)
                     self.inherited_params[next_task_ID]=params
                     self.self_params[next_task_ID] = next_task.params
                     if processes == 1 or next_task_ID in self.non_parallel_connector_functions_mapping.keys():
                         next_task.run_task(single_process=True, **params)
                         next_task.postprocess_results()
-                        print("Non-parallel Task Completed:", next_task_ID)
-                        print("     ---> result:", next_task.result)
+                        if not silent:
+                            print("Non-parallel Task Completed:", next_task_ID)
+                            print("     ---> result:", next_task.result)
                         self.results[next_task_ID] = next_task.result
                         completed.add(next_task_ID)
                         task_completed_count += 1
@@ -426,8 +430,9 @@ class Operation(object):
                     task_completed_count += 1
                     added_task.result = added_task.result.get()
                     added_task.postprocess_results()
-                    print("Parallel Task Completed:", added_task_ID)
-                    print("     ---> result:", added_task.result)
+                    if not silent:
+                        print("Parallel Task Completed:", added_task_ID)
+                        print("     ---> result:", added_task.result)
                     self.results[added_task_ID] = added_task.result
                     completed.add(added_task_ID)
                     to_remove.append(added_task_ID)
