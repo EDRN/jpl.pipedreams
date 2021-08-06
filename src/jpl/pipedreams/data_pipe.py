@@ -12,6 +12,7 @@ import os
 import shlex
 import subprocess
 import time, sys
+from tqdm import tqdm
 from jpl.pipedreams.celeryapp import CeleryDreamer
 
 
@@ -363,7 +364,7 @@ class Operation(object):
             # todo: make sure redis is running
             # start a single Celery worker that can spawn multiple processes
             # self.celerydreamer.start(concurrency=4)
-            strigified_list="["+",".join(["\""+item+"\"" for item in self.inlude_plugins])+"]"
+            strigified_list="["+",".join(["\""+item+"\"" for item in self.include_plugins])+"]"
             subprocess.Popen(
                 shlex.split(
                     sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
@@ -379,6 +380,7 @@ class Operation(object):
         seed_tasks = [task_ID for task_ID in task_graph.nodes if task_graph.in_degree(task_ID) == 0]
         next.update(seed_tasks)
         task_completed_count = 0
+        pbar = tqdm(total=len(task_graph.nodes))
         while (len(next) != 0 or len(added) != 0):
 
             # sweep the next queue and add tasks to workers or get them done
@@ -408,6 +410,7 @@ class Operation(object):
                             print("Non-parallel Task Completed:", next_task_ID)
                             print("     ---> result:", next_task.result)
                         self.results[next_task_ID] = next_task.result
+                        pbar.update(1)
                         completed.add(next_task_ID)
                         task_completed_count += 1
                         # add the children to next
@@ -434,6 +437,7 @@ class Operation(object):
                         print("Parallel Task Completed:", added_task_ID)
                         print("     ---> result:", added_task.result)
                     self.results[added_task_ID] = added_task.result
+                    pbar.update(1)
                     completed.add(added_task_ID)
                     to_remove.append(added_task_ID)
                     # add the children to next
@@ -442,11 +446,12 @@ class Operation(object):
 
             for task_ID in to_remove:
                 added.remove(task_ID)
-
+        pbar.close()
         # kill celery worker
         if processes > 1:
             # self.celerydreamer.stop()
             subprocess.call(shlex.split("pkill -f \"celery\""))
+
         print('num nodes in task graph:', len(task_graph.nodes))
         print('num task completed:', task_completed_count)
         print('time taken:', datetime.datetime.now() - start)
