@@ -13,7 +13,6 @@ import shlex
 import subprocess
 import time, sys
 from jpl.pipedreams.celeryapp import CeleryDreamer
-from tqdm import tqdm
 
 
 class Resource(object):
@@ -209,8 +208,8 @@ class Operation(object):
         self.self_params = {}
         self.added_resources = {}
         self.inherited_resource = {}
-        self.redis_path = redis_path
-        self.include_plugins = include_plugins
+        self.redis_path=redis_path
+        self.include_plugins=include_plugins
 
         # add all the connector functions to a dictionary; to be accessed using their names
         self.connector_functions_mapping = {func_name: getattr(self, func_name) for func_name in
@@ -237,7 +236,7 @@ class Operation(object):
             task_graph.add_edge(task_ID_A, task_ID_B)
         else:
             print("LOOP ERROR: :",
-                  task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
+                      task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
 
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
                   resource_dict: dict = None, silent=False):
@@ -364,11 +363,10 @@ class Operation(object):
             # todo: make sure redis is running
             # start a single Celery worker that can spawn multiple processes
             # self.celerydreamer.start(concurrency=4)
-            strigified_list = "[" + ",".join(["\"" + item + "\"" for item in self.include_plugins]) + "]"
+            strigified_list="["+",".join(["\""+item+"\"" for item in self.inlude_plugins])+"]"
             subprocess.Popen(
                 shlex.split(
-                    sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer(" + strigified_list + ",\"" + self.redis_path + "\"); cd.start(concurrency=" + str(
-                        processes) + ")'"),
+                    sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
                 stdout=open(os.devnull, 'wb')
             )
 
@@ -381,7 +379,6 @@ class Operation(object):
         seed_tasks = [task_ID for task_ID in task_graph.nodes if task_graph.in_degree(task_ID) == 0]
         next.update(seed_tasks)
         task_completed_count = 0
-        pbar = tqdm(total=len(task_graph.nodes))
         while (len(next) != 0 or len(added) != 0):
 
             # sweep the next queue and add tasks to workers or get them done
@@ -402,7 +399,7 @@ class Operation(object):
                         print("Adding to Run Queue:", next_task_ID)
                         print("   ---> with inherited params (from parent(s) task result(s)):", params)
                         print("   ---> with self params:", next_task.params)
-                    self.inherited_params[next_task_ID] = params
+                    self.inherited_params[next_task_ID]=params
                     self.self_params[next_task_ID] = next_task.params
                     if processes == 1 or next_task_ID in self.non_parallel_connector_functions_mapping.keys():
                         next_task.run_task(single_process=True, **params)
@@ -411,7 +408,6 @@ class Operation(object):
                             print("Non-parallel Task Completed:", next_task_ID)
                             print("     ---> result:", next_task.result)
                         self.results[next_task_ID] = next_task.result
-                        pbar.update(1)
                         completed.add(next_task_ID)
                         task_completed_count += 1
                         # add the children to next
@@ -438,7 +434,6 @@ class Operation(object):
                         print("Parallel Task Completed:", added_task_ID)
                         print("     ---> result:", added_task.result)
                     self.results[added_task_ID] = added_task.result
-                    pbar.update(1)
                     completed.add(added_task_ID)
                     to_remove.append(added_task_ID)
                     # add the children to next
@@ -447,8 +442,6 @@ class Operation(object):
 
             for task_ID in to_remove:
                 added.remove(task_ID)
-
-        pbar.close()
 
         # kill celery worker
         if processes > 1:
