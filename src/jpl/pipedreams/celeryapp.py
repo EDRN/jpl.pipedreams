@@ -1,5 +1,6 @@
 from celery import Celery
 from .utils.misc_utils import ignore_unmatched_kwargs
+import redis
 
 def celery_obj_func_runner(obj, func_name, **kwargs):
     result = ignore_unmatched_kwargs(getattr(obj, func_name))(**kwargs)
@@ -14,6 +15,9 @@ class CeleryDreamer():
     def __init__(self, plugin_list, redis_url=None):
         if redis_url[-1]!='/':
             redis_url+='/'
+        # flush redis
+        r = redis.Redis.from_url(redis_url)
+        r.flushdb()
         self.BROKER_URL = redis_url+'0'
         self.BACKEND_URL = redis_url+'1'
         self.app = Celery('proj',
@@ -33,7 +37,8 @@ class CeleryDreamer():
         self.celery_indi_func_runner = self.app.task(celery_indi_func_runner)
 
     def start(self, concurrency):
-        self.worker = self.app.Worker(concurrency=concurrency)
+        self.app.control.purge()
+        self.worker = self.app.Worker(concurrency=concurrency, loglevel="DEBUG")
         self.worker.start()
 
     def stop(self):

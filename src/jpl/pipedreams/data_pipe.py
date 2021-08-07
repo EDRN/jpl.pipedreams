@@ -150,12 +150,14 @@ class Operation(object):
 
     # ======== result connection/manipulation help functions:
 
+    @staticmethod
     @register_connector_func
-    def change_name(self, in_to_out: dict, **kwargs):
+    def change_name(in_to_out: dict, **kwargs):
         return {in_to_out.get(k, k): v for k, v in kwargs.items()}
 
+    @staticmethod
     @register_connector_func
-    def remove_keys(self, keys_to_remove, result_levels=None, **kwargs):
+    def remove_keys(keys_to_remove, result_levels=None, **kwargs):
         if result_levels is None:
             result_levels = []
         level_value = kwargs
@@ -176,8 +178,9 @@ class Operation(object):
         kwargs.pop('task_ID')
         return kwargs
 
+    @staticmethod
     @register_connector_func
-    def merge(self, in_multi, out="collapsed_results", merge_type='forced_ordered', **kwargs):
+    def merge(in_multi, out="collapsed_results", merge_type='forced_ordered', **kwargs):
         list_of_dict = []
         if type(in_multi) == list:
             for result_name in in_multi:
@@ -194,8 +197,9 @@ class Operation(object):
             kwargs[out] = collect_dicts(list_of_dict)
         return kwargs
 
+    @staticmethod
     @register_connector_func
-    def artificial_wait(self, wait_time, **kwargs):
+    def artificial_wait(wait_time, **kwargs):
         time.sleep(wait_time)
         return kwargs
 
@@ -213,7 +217,7 @@ class Operation(object):
         self.include_plugins=include_plugins
 
         # add all the connector functions to a dictionary; to be accessed using their names
-        self.connector_functions_mapping = {func_name: getattr(self, func_name) for func_name in
+        self.connector_functions_mapping = {func_name: getattr(Operation, func_name) for func_name in
                                             list(methodsWithDecorator(Operation, 'register_connector_func'))}
         self.non_parallel_connector_functions_mapping = {func_name: getattr(self, func_name) for func_name in list(
             methodsWithDecorator(Operation, 'register_non_parallelizable_connector_func'))}
@@ -354,7 +358,7 @@ class Operation(object):
 
         return params
 
-    def run_graph(self, processes=1, silent=False):
+    def run_graph(self, processes=1, silent=False, no_celery=False):
 
         if processes < 1:
             processes = 1
@@ -364,12 +368,13 @@ class Operation(object):
             # todo: make sure redis is running
             # start a single Celery worker that can spawn multiple processes
             # self.celerydreamer.start(concurrency=4)
-            strigified_list="["+",".join(["\""+item+"\"" for item in self.include_plugins])+"]"
-            subprocess.Popen(
-                shlex.split(
-                    sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
-                stdout=open(os.devnull, 'wb')
-            )
+            if no_celery:
+                strigified_list="["+",".join(["\""+item+"\"" for item in self.include_plugins])+"]"
+                subprocess.Popen(
+                    shlex.split(
+                        sys.executable + " -c  'from jpl.pipedreams import celeryapp; cd=celeryapp.CeleryDreamer("+strigified_list+",\""+self.redis_path+"\"); cd.start(concurrency="+str(processes)+")'"),
+                    stdout=open(os.devnull, 'wb')
+                )
 
         task_graph = self.task_graph
         next = set()
@@ -449,8 +454,9 @@ class Operation(object):
         pbar.close()
         # kill celery worker
         if processes > 1:
-            # self.celerydreamer.stop()
-            subprocess.call(shlex.split("pkill -f \"celery\""))
+            if no_celery:
+                # self.celerydreamer.stop()
+                subprocess.call(shlex.split("pkill -f \"celery\""))
 
         print('num nodes in task graph:', len(task_graph.nodes))
         print('num task completed:', task_completed_count)
