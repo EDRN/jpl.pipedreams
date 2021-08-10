@@ -58,6 +58,7 @@ class Task(object):
         self.op_params = op_params
         self.run_function = run_function
         self.celerydreamer = celerydreamer
+        self.time_taken=None # in seconds
 
     @staticmethod
     def concoct_task_ID(name, resource_ID):
@@ -215,6 +216,7 @@ class Operation(object):
         self.inherited_resource = {}
         self.redis_path=redis_path
         self.include_plugins=include_plugins
+        self.times={}
 
         # add all the connector functions to a dictionary; to be accessed using their names
         self.connector_functions_mapping = {func_name: getattr(Operation, func_name) for func_name in
@@ -225,6 +227,20 @@ class Operation(object):
         if include_plugins is None:
             include_plugins = []
         self.celerydreamer = CeleryDreamer(include_plugins, redis_path)
+
+    def prepare_results(self):
+        prepared_results=[]
+        for task_ID, result in self.results.items():
+            prepared_results.append({
+            'resource_ID' : Task.task_ID_to_resource_ID(task_ID),
+            'function_applied' : Task.task_ID_to_function_name(task_ID),
+            'time_taken' : self.times.get(task_ID, None),
+            'inherited_params' : self.inherited_params.get(task_ID, None),
+            'self_params' : self.self_params.get(task_ID, None),
+            })
+        return prepared_results
+
+
 
     def add_edge(self, task_ID_A, task_ID_B, silent=False):
 
@@ -409,7 +425,9 @@ class Operation(object):
                     self.inherited_params[next_task_ID]=params
                     self.self_params[next_task_ID] = next_task.params
                     if processes == 1 or next_task_ID in self.non_parallel_connector_functions_mapping.keys():
+                        time_task_begin=datetime.datetime.now()
                         next_task.run_task(single_process=True, **params)
+                        self.times[next_task_ID] = (datetime.datetime.now()-time_task_begin).total_seconds()
                         next_task.postprocess_results()
                         if not silent:
                             print("Non-parallel Task Completed:", next_task_ID)
@@ -436,7 +454,9 @@ class Operation(object):
                 added_task = self.task_ID_to_task[added_task_ID]
                 if str(added_task.result.state) == 'SUCCESS':
                     task_completed_count += 1
-                    added_task.result = added_task.result.get()
+                    rs=added_task.result.get()
+                    added_task.result = rs['result']
+                    self.times[added_task_ID] =rs['time_taken']
                     added_task.postprocess_results()
                     if not silent:
                         print("Parallel Task Completed:", added_task_ID)

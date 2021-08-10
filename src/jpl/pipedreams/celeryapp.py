@@ -1,14 +1,19 @@
 from celery import Celery
 from .utils.misc_utils import ignore_unmatched_kwargs
 import redis
+import datetime
 
 def celery_obj_func_runner(obj, func_name, **kwargs):
+    task_begin=datetime.datetime.now()
     result = ignore_unmatched_kwargs(getattr(obj, func_name))(**kwargs)
-    return result
+    time_taken_in_seconds=(datetime.datetime.now()-task_begin).total_seconds()
+    return {'result': result, 'time_taken': time_taken_in_seconds}
 
 def celery_indi_func_runner(func_object, **kwargs):
+    task_begin=datetime.datetime.now()
     result = ignore_unmatched_kwargs(func_object)(**kwargs)
-    return result
+    time_taken_in_seconds=(datetime.datetime.now()-task_begin).total_seconds()
+    return {'result': result, 'time_taken': time_taken_in_seconds}
 
 class CeleryDreamer():
 
