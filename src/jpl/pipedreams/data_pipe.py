@@ -14,7 +14,7 @@ import subprocess
 import time, sys
 from tqdm import tqdm
 from jpl.pipedreams.celeryapp import CeleryDreamer
-
+import inspect
 
 class Resource(object):
 
@@ -205,6 +205,7 @@ class Operation(object):
         return kwargs
 
     def __init__(self, name: str, redis_path=None, include_plugins=None):
+        self.instructions = []
         self.task_graph = nx.DiGraph()
         self.name = name
         self.task_ID_to_task = {}
@@ -214,9 +215,10 @@ class Operation(object):
         self.self_params = {}
         self.added_resources = {}
         self.inherited_resource = {}
-        self.redis_path=redis_path
-        self.include_plugins=include_plugins
-        self.times={}
+        self.redis_path = redis_path
+        self.include_plugins = include_plugins
+        self.times = {}
+        self.cache = {}
 
         # add all the connector functions to a dictionary; to be accessed using their names
         self.connector_functions_mapping = {func_name: getattr(Operation, func_name) for func_name in
@@ -240,9 +242,28 @@ class Operation(object):
             })
         return prepared_results
 
+    def execute_instructions(self):
+        for function_name, params in self.instructions:
+            self.__getattribute__(function_name)(**params)
+
+    def _add_to_instructions(self, params, function_name):
+            params['delayed']=False # so that while execution it is actually executed!
+            params.pop('self')
+            self.instructions.append((function_name, params))
 
 
-    def add_edge(self, task_ID_A, task_ID_B, silent=False):
+    def add_to_global_cache(self, ID, resource, delayed=True):
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
+
+        self.cache[ID]=resource
+
+    def add_edge(self, task_ID_A, task_ID_B, silent=False, delayed=True):
+
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
 
         task_graph = self.task_graph
         task_ID_to_task = self.task_ID_to_task
@@ -260,7 +281,12 @@ class Operation(object):
                       task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
 
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
-                  resource_dict: dict = None, silent=False):
+                  resource_dict: dict = None, silent=False, delayed=True):
+
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
+
         """
         processes: a list of tuples (process_name, process)
         runtime_params_dict: {process_name:runtime_params_as_dict}}
@@ -314,10 +340,14 @@ class Operation(object):
 
             task_prev = task
 
-    def add_connection(self, resource_ID_A, name_A, resource_ID_B, name_B, silent=False):
+    def add_connection(self, resource_ID_A, name_A, resource_ID_B, name_B, silent=False, delayed=True):
         """
         To connect two tasks which have been already initialized using the function: add_pipes
         """
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
+
         task_ID_A = Task.concoct_task_ID(name_A, resource_ID_A)
         task_ID_B = Task.concoct_task_ID(name_B, resource_ID_B)
         self.add_edge(task_ID_A, task_ID_B, silent=silent)
@@ -375,6 +405,10 @@ class Operation(object):
         return params
 
     def run_graph(self, processes=1, silent=False, no_celery=False):
+
+        if len(self.instructions)!=0:
+            print('Executing instructions:')
+            self.execute_instructions()
 
         if processes < 1:
             processes = 1
