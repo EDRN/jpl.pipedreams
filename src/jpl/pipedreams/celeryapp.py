@@ -3,17 +3,31 @@ from .utils.misc_utils import ignore_unmatched_kwargs
 import redis
 import datetime
 
-def celery_obj_func_runner(obj, func_name, **kwargs):
-    task_begin=datetime.datetime.now()
+def obj_func_runner(obj, func_name, objects:dict=None, **kwargs):
+    if objects is None:
+        objects={}
+    for object_name, objct in objects.items():
+        kwargs[object_name]=objct
+    task_begin = datetime.datetime.now()
     result = ignore_unmatched_kwargs(getattr(obj, func_name))(**kwargs)
     time_taken_in_seconds=(datetime.datetime.now()-task_begin).total_seconds()
-    return {'result': result, 'time_taken': time_taken_in_seconds}
+    to_return= {'result': result, 'time_taken': time_taken_in_seconds}
+    for object_name, objct in objects.items():
+        to_return[object_name] = kwargs[object_name]
+    return to_return
 
-def celery_indi_func_runner(func_object, **kwargs):
-    task_begin=datetime.datetime.now()
+def indi_func_runner(func_object, objects:dict=None, **kwargs):
+    if objects is None:
+        objects={}
+    for object_name, objct in objects.items():
+        kwargs[object_name]=objct
+    task_begin = datetime.datetime.now()
     result = ignore_unmatched_kwargs(func_object)(**kwargs)
     time_taken_in_seconds=(datetime.datetime.now()-task_begin).total_seconds()
-    return {'result': result, 'time_taken': time_taken_in_seconds}
+    to_return = {'result': result, 'time_taken': time_taken_in_seconds}
+    for object_name, objct in objects.items():
+        to_return[object_name] = kwargs[object_name]
+    return to_return
 
 class CeleryDreamer():
 
@@ -38,8 +52,8 @@ class CeleryDreamer():
             accept_content=['pickle', 'json'],
             result_accept_content=['pickle', 'json']
         )
-        self.celery_obj_func_runner = self.app.task(celery_obj_func_runner)
-        self.celery_indi_func_runner = self.app.task(celery_indi_func_runner)
+        self.celery_obj_func_runner = self.app.task(obj_func_runner)
+        self.celery_indi_func_runner = self.app.task(indi_func_runner)
 
     def start(self, concurrency):
         self.app.control.purge()

@@ -181,3 +181,29 @@ my_fourth_operation.add_connection(s_resource_ID='mydata1.cfg', s_name='metadata
 my_fourth_operation.add_connection(s_resource_ID='mydata2.cfg', s_name='metadata_reader', t_resource_ID='data_merge1', t_name='data_merge')
 my_fourth_operation.run_graph()
 
+"""
+let us create a graph within a graph!
+"""
+
+my_fifth_operation = Operation(name='my_fifth_operation', redis_path=redis_path, include_plugins=plugins_dir_list)
+
+main_task_template = [
+    # read the metadata file from disk
+    ["read_cfg", "plugins.file_ops.disk.read_str"],
+    # parse the string into a dictionary
+    ["plugins.metadata_parsers.cfg.parse_metadata"],
+    # change the name to match the input of the next function
+    ['change_name', {'in_to_out': {'metadata': 'meta_input'}}],
+    # do some simple processing to the metadata
+    [add_suffix_to_dict_values, {"suffix": "|", "op_out": ["metadata"]}],
+]
+# add this to the operation as a template that can be used by its name later.
+my_fifth_operation.define_template('metadata_reader', main_task_template)
+
+def some_process(new_operation):
+    new_operation.add_pipes(resource_ID="mydata1.cfg", processes=[['metadata_reader']], runtime_params_dict={'read_cfg': {'path': os.path.join(base_data_path, 'mydata1.cfg')}})
+    return
+
+my_fifth_operation.add_pipes(resource_ID="graph_create_1", processes=[[some_process]])
+my_fifth_operation.run_graph()
+

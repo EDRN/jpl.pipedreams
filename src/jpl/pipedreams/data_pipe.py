@@ -3,17 +3,16 @@
 '''Resources and tasks for data pipes'''
 
 from .plugins_ops import PluginCollection
-from .utils.misc_utils import merge_dict, merge_dicts, nested_set, collect_dicts, ignore_unmatched_kwargs, MyException
+from .utils.misc_utils import merge_dict, merge_dicts, nested_set, collect_dicts, MyException
 import copy
 import datetime
-import inspect
 import networkx as nx
 import os
 import shlex
 import subprocess
 import time, sys
 from tqdm import tqdm
-from jpl.pipedreams.celeryapp import CeleryDreamer
+from jpl.pipedreams.celeryapp import CeleryDreamer, obj_func_runner, indi_func_runner
 import inspect
 
 class Resource(object):
@@ -59,6 +58,7 @@ class Task(object):
         self.run_function = run_function
         self.celerydreamer = celerydreamer
         self.time_taken=None # in seconds
+        self.objects={} # these objects will go into the process like a param that can be added upon by the process
 
     @staticmethod
     def get_process_name(process):
@@ -93,20 +93,19 @@ class Task(object):
         if self.is_plugin:
             if self.run_function is not None:
                 if single_process:
-                    self.result = self.process.apply(self.run_function, **kwargs)
+                    self.result = obj_func_runner(self.process, self.run_function, self.objects, **kwargs)
                 else:
-                    self.result = self.celerydreamer.celery_obj_func_runner.delay(self.process, self.run_function,
-                                                                                  **kwargs)
+                    self.result = self.celerydreamer.celery_obj_func_runner.delay(self.process, self.run_function, self.objects, **kwargs)
             else:
                 if single_process:
-                    self.result = self.process.run(**kwargs)
+                    self.result = obj_func_runner(self.process, 'run', self.objects, **kwargs)
                 else:
-                    self.result = self.celerydreamer.celery_obj_func_runner.delay(self.process, 'run', **kwargs)
+                    self.result = self.celerydreamer.celery_obj_func_runner.delay(self.process, 'run', self.objects, **kwargs)
         else:
             if single_process:
-                self.result = ignore_unmatched_kwargs(self.process)(**kwargs)
+                self.result = indi_func_runner(self.process, self.objects, **kwargs)
             else:
-                self.result = self.celerydreamer.celery_indi_func_runner.delay(self.process, **kwargs)
+                self.result = self.celerydreamer.celery_indi_func_runner.delay(self.process, self.objects, **kwargs)
 
     def postprocess_results(self):
 
@@ -243,7 +242,8 @@ class Operation(object):
 
         if include_plugins is None:
             include_plugins = []
-        self.celerydreamer = CeleryDreamer(include_plugins, redis_path)
+        if redis_path is not None:
+            self.celerydreamer = CeleryDreamer(include_plugins, redis_path)
 
     def prepare_results(self):
         prepared_results=[]
@@ -258,8 +258,13 @@ class Operation(object):
         return prepared_results
 
     def execute_instructions(self):
+        new_nodes_created=[]
         for function_name, params in self.instructions:
-            self.__getattribute__(function_name)(**params)
+            result=self.__getattribute__(function_name)(**params)
+            if type(result)==dict and 'new_nodes_created' in result.keys():
+                new_nodes_created.extend(result['new_nodes_created'])
+        self.instructions=[]
+        return new_nodes_created
 
     def _add_to_instructions(self, params, function_name):
             params['delayed']=False # so that while execution it is actually executed!
@@ -340,14 +345,16 @@ class Operation(object):
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
                   resource_dict: dict = None, silent=False, delayed=True):
 
-        if delayed==True:
-            self._add_to_instructions(locals(), inspect.stack()[0][3])
-            return
-
         """
         processes: a list of tuples (process_name, process)
         runtime_params_dict: {process_name:runtime_params_as_dict}}
         """
+
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
+
+        new_nodes_created=[]
 
         runtime_params_dict = {} if runtime_params_dict is None else copy.deepcopy(runtime_params_dict)
         resource_dict = {} if resource_dict is None else copy.deepcopy(resource_dict)
@@ -385,6 +392,7 @@ class Operation(object):
                 if not silent:
                     print('Adding Node:', task_ID)
                 task_graph.add_node(task_ID, process=process)
+                new_nodes_created.append(task_ID)
             else:
                 task = task_ID_to_task[task_ID]
             if i != 0:
@@ -396,7 +404,11 @@ class Operation(object):
                     self.added_resources[task_ID] = {}
                 self.added_resources[task_ID][resource_name] = resource
 
+            # add a new Operation object to the task, this will go into the process as a parameter and can be retrieved from the results
+            task.objects['new_operation'] = Operation('new_operation')
+
             task_prev = task
+        return {'new_nodes_created': new_nodes_created}
 
     def add_connection(self, s_resource_ID, s_name, t_resource_ID, t_name, silent=False, delayed=True):
         """
@@ -512,6 +524,7 @@ class Operation(object):
                 for predecessor_ID in predecessors:
                     if predecessor_ID not in completed:
                         ripe = False
+                # todo: the parallel and non-parallel execution has a lot of code duplication!
                 if ripe:
                     next_task = self.task_ID_to_task[next_task_ID]
                     # gather params from parents
@@ -525,7 +538,9 @@ class Operation(object):
                     if processes == 1 or next_task_ID in self.non_parallel_connector_functions_mapping.keys():
                         time_task_begin=datetime.datetime.now()
                         next_task.run_task(single_process=True, **params)
-                        self.times[next_task_ID] = (datetime.datetime.now()-time_task_begin).total_seconds()
+                        rs = next_task.result
+                        next_task.result = rs['result']
+                        self.times[next_task_ID] = rs['time_taken']
                         next_task.postprocess_results()
                         if not silent:
                             print("Non-parallel Task Completed:", next_task_ID)
@@ -534,6 +549,14 @@ class Operation(object):
                         pbar.update(1)
                         completed.add(next_task_ID)
                         task_completed_count += 1
+                        # see if the task had new instructions within
+                        new_instructions=rs['new_operation'].instructions
+                        self.instructions=new_instructions
+                        new_nodes_created=self.execute_instructions()
+                        # find which ones have 0 in degree and attach them to the current task_ID
+                        for new_node_created in new_nodes_created:
+                            if self.task_graph.in_degree(new_node_created)==0:
+                                self.add_edge(next_task_ID, new_node_created, silent=silent, delayed=False)
                         # add the children to next
                         for new_next_task_ID in task_graph.successors(next_task_ID):
                             to_add.append(new_next_task_ID)
@@ -563,6 +586,14 @@ class Operation(object):
                     pbar.update(1)
                     completed.add(added_task_ID)
                     to_remove.append(added_task_ID)
+                    # see if the task had new instructions within
+                    new_instructions = rs['new_operation'].instructions
+                    self.instructions = new_instructions
+                    new_nodes_created = self.execute_instructions()
+                    # find which ones have 0 in degree and attach them to the current task_ID
+                    for new_node_created in new_nodes_created:
+                        if self.task_graph.in_degree(new_node_created) == 0:
+                            self.add_edge(added_task_ID, new_node_created, silent=silent, delayed=False)
                     # add the children to next
                     for next_task_ID in task_graph.successors(added_task_ID):
                         next.add(next_task_ID)
