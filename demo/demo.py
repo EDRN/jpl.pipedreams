@@ -28,7 +28,7 @@ my_first_operation = Operation(name='my_first_operation', redis_path=redis_path,
 
 # Declare your process using a plugin function:
 process_list = [
-    ("hello_world_read", "plugins.file_ops.disk.read_str", {"path": os.path.join(base_data_path, 'mydata0.txt')})
+    ["hello_world_read", "plugins.file_ops.disk.read_str", {"path": os.path.join(base_data_path, 'mydata0.txt')}]
 ]
 
 """
@@ -50,13 +50,13 @@ my_second_operation = Operation(name='my_second_operation', redis_path=redis_pat
 # declare the processes that run sequentially in a single template; we call this a template cause you can reuse it later.
 main_task_template = [
     # read the metadata file from disk
-    ("read_cfg", "plugins.file_ops.disk.read_str", None),
+    ["read_cfg", "plugins.file_ops.disk.read_str", None],
     # parse the string into a dictionary
-    ("parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None),
+    ["parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None],
     # change the name to match the input of the next function
-    ("result_change_name", 'change_name', {'in_to_out': {'metadata': 'meta_input'}}),
+    ["result_change_name", 'change_name', {'in_to_out': {'metadata': 'meta_input'}}],
     # do some simple processing to the metadata
-    ("process_metadata", add_suffix_to_dict_values, {"suffix": "|", "op_out": ["metadata"]}),
+    ["process_metadata", add_suffix_to_dict_values, {"suffix": "|", "op_out": ["metadata"]}],
 ]
 
 # using your template, initialize/add tasks to your operation all at once
@@ -91,7 +91,7 @@ my_second_operation.add_pipes(resource_ID="mydata2.cfg", processes=main_task_tem
 - Notice that we used the filename also as the 'resource_ID'. To be honest, you can use any name 
     above and it won't be an issue.
 """
-my_second_operation.run_graph(processes=2)
+my_second_operation.run_graph(processes=1)
 """
 - If you give the 'process' a value more than 1, it uses Celery and Redis to parallelize the graph execution.
 - Try it but make sure you have a redis client running and have Celery installed!
@@ -108,8 +108,8 @@ my_second_operation.add_pipes(resource_ID="data_merge1", processes=[merge_templa
 - Here we are intending to merge the two results from earlier, both called 'metadata', such that the duplicate keys 
     with different values get joined together in a list. This highlights the usefulness of another internal function.
 """
-my_second_operation.add_connection(resource_ID_A='mydata1.cfg', name_A='process_metadata', resource_ID_B='data_merge1', name_B='data_merge')
-my_second_operation.add_connection(resource_ID_A='mydata2.cfg', name_A='process_metadata', resource_ID_B='data_merge1', name_B='data_merge')
+my_second_operation.add_connection(s_resource_ID='mydata1.cfg', s_name='process_metadata', t_resource_ID='data_merge1', t_name='data_merge')
+my_second_operation.add_connection(s_resource_ID='mydata2.cfg', s_name='process_metadata', t_resource_ID='data_merge1', t_name='data_merge')
 """
 - Since we had already declared and initialized all the tasks, in above we just connect the tasks together
 """
@@ -122,13 +122,13 @@ my_third_operation = Operation(name='my_third_operation', redis_path=redis_path,
 
 add_op_resource = [
     # read the bytes of the file from disk
-    ("read_excel", "plugins.file_ops.disk.get_bytes", None),
+    ["read_excel", "plugins.file_ops.disk.get_bytes", None],
     # parse the excel into a dataframe
-    ("excel_to_df", "plugins.metadata_parsers.excel.parse_metadata", None),
+    ["excel_to_df", "plugins.metadata_parsers.excel.parse_metadata", None],
     # add the result to the op resources
-    ("add_extra_metedata_resource", 'add_to_op_resource', {"in_to_op": {'metadata': 'additional_metadata'}}),
+    ["add_extra_metedata_resource", 'add_to_op_resource', {"in_to_op": {'metadata': 'additional_metadata'}}],
     # remove the op resource part of the result from the result
-    ("remove_resource_from_result", 'remove_keys', {"keys_to_remove":["metadata"]})
+    ["remove_resource_from_result", 'remove_keys', {"keys_to_remove":["metadata"]}]
 ]
 """
 - We defined a process template where we intend to read an excel sheet and make it available to all our successor tasks
@@ -138,11 +138,11 @@ add_op_resource = [
 """
 main_task_template = [
     # read the metadata file from disk
-    ("read_cfg", "plugins.file_ops.disk.read_str", None),
+    ["read_cfg", "plugins.file_ops.disk.read_str", None],
     # parse the string into a dictionary
-    ("parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None),
+    ["parse_cfg", "plugins.metadata_parsers.cfg.parse_metadata", None],
     # add the additional metadata to the main metadata
-    ("use_the_added_resource", retrieve_additional_metadata, None)
+    ["use_the_added_resource", retrieve_additional_metadata, None]
 ]
 """
 - Here the function 'retrieve_additional_metadata' gives a good example of how to use the op_resource we added earlier.
@@ -155,3 +155,29 @@ runtime_params_dict = {
 }
 my_third_operation.add_pipes(resource_ID="mydata1.cfg", processes=add_op_resource+main_task_template, runtime_params_dict=runtime_params_dict)
 my_third_operation.run_graph()
+
+"""
+Now, let us simplify things further by defining templates.
+"""
+my_fourth_operation = Operation(name='my_fourth_operation', redis_path=redis_path, include_plugins=plugins_dir_list)
+
+main_task_template = [
+    # read the metadata file from disk
+    ["read_cfg", "plugins.file_ops.disk.read_str"],
+    # parse the string into a dictionary
+    ["plugins.metadata_parsers.cfg.parse_metadata"],
+    # change the name to match the input of the next function
+    ['change_name', {'in_to_out': {'metadata': 'meta_input'}}],
+    # do some simple processing to the metadata
+    [add_suffix_to_dict_values, {"suffix": "|", "op_out": ["metadata"]}],
+]
+# add this to the operation as a template that can be used by its name later.
+my_fourth_operation.define_template('metadata_reader', main_task_template)
+
+my_fourth_operation.add_pipes(resource_ID="mydata1.cfg", processes=[['metadata_reader']], runtime_params_dict={'read_cfg': {'path': os.path.join(base_data_path, 'mydata1.cfg')}})
+my_fourth_operation.add_pipes(resource_ID="mydata2.cfg", processes=[['metadata_reader']], runtime_params_dict={'read_cfg': {'path': os.path.join(base_data_path, 'mydata2.cfg')}})
+my_fourth_operation.add_pipes(resource_ID="data_merge1", processes=[["data_merge", 'merge', {"in_multi": "metadata",  "merge_type": "collect"}]])
+my_fourth_operation.add_connection(s_resource_ID='mydata1.cfg', s_name='metadata_reader', t_resource_ID='data_merge1', t_name='data_merge')
+my_fourth_operation.add_connection(s_resource_ID='mydata2.cfg', s_name='metadata_reader', t_resource_ID='data_merge1', t_name='data_merge')
+my_fourth_operation.run_graph()
+

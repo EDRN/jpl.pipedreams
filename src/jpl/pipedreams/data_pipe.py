@@ -3,7 +3,7 @@
 '''Resources and tasks for data pipes'''
 
 from .plugins_ops import PluginCollection
-from .utils.misc_utils import merge_dict, merge_dicts, nested_set, collect_dicts, ignore_unmatched_kwargs
+from .utils.misc_utils import merge_dict, merge_dicts, nested_set, collect_dicts, ignore_unmatched_kwargs, MyException
 import copy
 import datetime
 import inspect
@@ -59,6 +59,15 @@ class Task(object):
         self.run_function = run_function
         self.celerydreamer = celerydreamer
         self.time_taken=None # in seconds
+
+    @staticmethod
+    def get_process_name(process):
+        if type(process) == str:
+            return process
+        elif hasattr(process, '__call__'):
+            return process.__name__
+        else:
+            MyException('Error: Process name could not be resolved!')
 
     @staticmethod
     def concoct_task_ID(name, resource_ID):
@@ -204,6 +213,10 @@ class Operation(object):
         time.sleep(wait_time)
         return kwargs
 
+    def generate_process_ID(self):
+        self.counter+=1
+        return str(self.counter)
+
     def __init__(self, name: str, redis_path=None, include_plugins=None):
         self.instructions = []
         self.task_graph = nx.DiGraph()
@@ -219,6 +232,8 @@ class Operation(object):
         self.include_plugins = include_plugins
         self.times = {}
         self.cache = {}
+        self.templates={}
+        self.counter=0
 
         # add all the connector functions to a dictionary; to be accessed using their names
         self.connector_functions_mapping = {func_name: getattr(Operation, func_name) for func_name in
@@ -259,6 +274,12 @@ class Operation(object):
 
         self.cache[ID]=resource
 
+    def define_template(self, name, processes, delayed=True):
+        if delayed==True:
+            self._add_to_instructions(locals(), inspect.stack()[0][3])
+            return
+        self.templates[name]=self._normalize_process_details(processes)
+
     def add_edge(self, task_ID_A, task_ID_B, silent=False, delayed=True):
 
         if delayed==True:
@@ -268,9 +289,10 @@ class Operation(object):
         task_graph = self.task_graph
         task_ID_to_task = self.task_ID_to_task
 
-        if task_ID_A not in task_ID_to_task.keys() or task_ID_B not in task_ID_to_task.keys():
-            print('ERROR: Please, initialize the processes first using the \'add_pipes\' function!')
-            return None
+        if task_ID_A not in task_ID_to_task.keys():
+            raise MyException('ERROR: Please, initialize the processes first using the \'add_pipes\' function: '+task_ID_A)
+        if task_ID_B not in task_ID_to_task.keys():
+            raise MyException('ERROR: Please, initialize the processes first using the \'add_pipes\' function: '+task_ID_B)
         if not silent:
             print("Adding Edge: " + task_ID_A + " --> " + task_ID_B)
         # check if the above breaks the DAG assumptions
@@ -279,6 +301,41 @@ class Operation(object):
         else:
             print("LOOP ERROR: :",
                       task_ID_A + " --> " + task_ID_B + " could not be added because it will create a loop!")
+
+    def _normalize_process_details(self, processes):
+
+        # check if there are any calls to templates and unroll them
+        processes_ = []
+        for process_details in processes:
+            if len(process_details) == 1 and process_details[0] in self.templates.keys():
+                processes_.extend(self.templates[process_details[0]])
+            else:
+                processes_.append(process_details)
+        processes = processes_
+
+        processes_=[]
+        for i, process_details in enumerate(processes):
+            if len(process_details)==1: # (process)
+                process=process_details[0]
+                name=Task.get_process_name(process)+'_'+self.generate_process_ID()
+                runtime_params = None
+            elif len(process_details)==2:
+                if type(process_details[1])==dict: # (process, runtime_params)
+                    process = process_details[0]
+                    runtime_params = process_details[1]
+                    name = Task.get_process_name(process) + '_' + self.generate_process_ID()
+                else: # (name, process)
+                    name=process_details[0]
+                    process = process_details[1]
+                    runtime_params = None
+            elif len(process_details)==3: # (name, process, runtime_params)
+                name = process_details[0]
+                process = process_details[1]
+                runtime_params = process_details[2]
+            else:
+                raise MyException('Error: Incorrect number of process details given:', len(process_details))
+            processes_.append([name, process, runtime_params])
+        return processes_
 
     def add_pipes(self, resource_ID: str, processes: list, runtime_params_dict: dict = None,
                   resource_dict: dict = None, silent=False, delayed=True):
@@ -299,7 +356,8 @@ class Operation(object):
         task_ID_to_task = self.task_ID_to_task
 
         task_prev = None
-        for i, (name, process, runtime_params) in enumerate(processes):
+
+        for i, (name, process, runtime_params)  in enumerate(self._normalize_process_details(processes)):
             runtime_params = {} if runtime_params is None else copy.deepcopy(runtime_params)
             op_param_keys = [key for key in runtime_params.keys() if 'op_' in key]
             op_params = {k: runtime_params[k] for k in op_param_keys}
@@ -340,7 +398,7 @@ class Operation(object):
 
             task_prev = task
 
-    def add_connection(self, resource_ID_A, name_A, resource_ID_B, name_B, silent=False, delayed=True):
+    def add_connection(self, s_resource_ID, s_name, t_resource_ID, t_name, silent=False, delayed=True):
         """
         To connect two tasks which have been already initialized using the function: add_pipes
         """
@@ -348,8 +406,14 @@ class Operation(object):
             self._add_to_instructions(locals(), inspect.stack()[0][3])
             return
 
-        task_ID_A = Task.concoct_task_ID(name_A, resource_ID_A)
-        task_ID_B = Task.concoct_task_ID(name_B, resource_ID_B)
+        if s_name in self.templates.keys():
+            s_name=self.templates[s_name][0][0]
+
+        if t_name in self.templates.keys():
+            t_name=self.templates[t_name][-1][0]
+
+        task_ID_A = Task.concoct_task_ID(s_name, s_resource_ID)
+        task_ID_B = Task.concoct_task_ID(t_name, t_resource_ID)
         self.add_edge(task_ID_A, task_ID_B, silent=silent)
 
     def task_prep(self, task_ID):
