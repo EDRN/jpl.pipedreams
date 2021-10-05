@@ -419,10 +419,10 @@ class Operation(object):
             return
 
         if s_name in self.templates.keys():
-            s_name=self.templates[s_name][0][0]
+            s_name=self.templates[s_name][-1][0]
 
         if t_name in self.templates.keys():
-            t_name=self.templates[t_name][-1][0]
+            t_name=self.templates[t_name][0][0]
 
         task_ID_A = Task.concoct_task_ID(s_name, s_resource_ID)
         task_ID_B = Task.concoct_task_ID(t_name, t_resource_ID)
