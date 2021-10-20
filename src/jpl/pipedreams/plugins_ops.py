@@ -111,10 +111,12 @@ class PluginCollection(object):
             # search for the plugin
             # print('plugin def not found, looking:', name)
             plugins = find_plugins(name)
-            if len(plugins) != 1:
-                # todo: throw error
-                print('More than one plugin found:', plugins)
-                return None
+            if len(plugins) == 0:
+                print('no plugin found:')
+                raise ModuleNotFoundError
+            elif len(plugins) > 1:
+                print('more than one plugin found:', plugins)
+                raise ImportError
             else:
                 # print('plugin def found, adding and initializing:', name)
                 plugin = plugins[0]
