@@ -41,6 +41,8 @@ $ source venv/bin/activate  # or use activate.csh or activate.fish as needed
 
 Once this is done, you can run `venv/bin/python` as your Python interpreter and it will have the Pipe Dreams API (and all its dependencies) ready for use. Note that the `activate` step, although deprecated, is still necessary in order to have the `celery` program on your execution path.
 
+👉 **Note:** As of release 1.0.3 of Pipe Dreams, Python 3.7 through Python 3.9 are supported. Python 3.10 is not yet endorsed by this package.
+
 
 ## 👩‍💻 Customizing the Workflow
 
