@@ -1,4 +1,5 @@
 # Python build, virtual environments, and buildouts
+.venv
 venv
 __pycache__/
 dist/
