@@ -1,0 +1,52 @@
+[project]
+name = 'jpl.pipedreams'
+dynamic = ['version']
+requires-python = '>=3.9'
+dependencies = [
+    'celery   ~= 5.4.0',
+    'redis    ~= 5.2.1',
+    'networkx ~= 2.8.8',
+    'tqdm     ~= 4.67.1',
+]
+authors = [
+    {name = 'Asitang Mishra', email='asitang@gmail.com'},
+    {name = 'Sean Kelly', email='kelly@seankelly.biz'}
+]
+description = 'Pipe Dreams: API for publication of scientific data'
+readme = 'README.md'
+keywords = ['science', 'data', 'analysis', 'archive', 'catalog', 'publication', 'pipes']
+classifiers = [
+    'Development Status :: 3 - Alpha',
+    'Environment :: Console',
+    'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
+    'License :: OSI Approved :: Apache Software License',
+    'Operating System :: OS Independent',
+    'Programming Language :: Python :: 3 :: Only',
+    'Topic :: Database',
+    'Topic :: Scientific/Engineering :: Bio-Informatics'
+]
+license = {file = 'LICENSE.md'}
+
+
+[project.urls]
+Homepage = 'https://github.com/EDRN/jpl.pipedreams'
+Issues = 'https://github.com/EDRN/jpl.pipedreams/issues'
+
+
+[project.scripts]
+# None at this time
+
+
+[tool.hatch.version]
+path = 'src/jpl/pipedreams/VERSION.txt'
+pattern = '(?P<version>.+)'
+
+
+[tool.hatch.build.targets.wheel]
+packages = ['src/jpl']
+
+
+[build-system]
+requires = ['hatchling']
+build-backend = 'hatchling.build'
